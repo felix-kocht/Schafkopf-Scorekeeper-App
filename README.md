@@ -4,16 +4,18 @@ The Schafkopf Scorekeeper App is a tool to track the scores of players during ga
 
 ## Access
 
-Use the URL https://grand-pegasus-1a9e49.netlify.app to access the app.
+Use the URL [grand-pegasus-1a9e49.netlify.app](https://grand-pegasus-1a9e49.netlify.app) to access the app.
 
 ## Usage
 
-Please refer to the landing page [the-scorekeeper.com]([url](https://the-scorekeeper.com)) for the explanation (incl. a tutorial video).
+Please refer to the landing page [the-scorekeeper.com](https://the-scorekeeper.com) for the explanation (incl. a tutorial video).
 
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first
 to discuss what you would like to change.
+
+The repository for the landing page can be found [here](https://github.com/felix-kocht/Schafkopf-Scorekeeper/blob/main/README.md).
 
 ## License
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Download, Trash2, RotateCcw } from 'lucide-react';
 import { Player } from '../types';
-import { generateCSV } from '../utils/scoreUtils';
+import { generateCSV, normalizeRoundScores } from '../utils/scoreUtils';
 
 interface ScoreHistoryProps {
   players: Player[];
@@ -66,7 +66,7 @@ export const ScoreHistory: React.FC<ScoreHistoryProps> = ({
               <tr>
                 <th className="w-10 px-2 py-2 bg-gray-700/50 rounded-tl-lg text-sm sticky left-0 z-10">#</th>
                 {players.map((player, i) => (
-                  <th key={i} className={`px-2 py-2 bg-gray-700/50 text-sm whitespace-nowrap ${
+                  <th key={player.name} className={`px-2 py-2 bg-gray-700/50 text-sm whitespace-nowrap ${
                     i === players.length - 1 ? 'rounded-tr-lg' : ''
                   }`}>
                     {player.name}
@@ -75,24 +75,32 @@ export const ScoreHistory: React.FC<ScoreHistoryProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/30">
-              {scores.map((round, roundIndex) => (
-                <tr key={roundIndex} className="group">
-                  <td className="px-2 py-1.5 text-center text-gray-400 text-sm group-hover:bg-gray-700/30 transition-colors sticky left-0 bg-gray-800/50 backdrop-blur-sm">
-                    {roundIndex + 1}
-                  </td>
-                  {round.map((score, playerIndex) => (
-                    <td
-                      key={playerIndex}
-                      className={`px-2 py-1.5 text-center text-sm group-hover:bg-gray-700/30 transition-colors ${
-                        score === 0 ? 'text-gray-400' :
-                        score > 0 ? 'text-green-400' : 'text-red-400'
-                      }`}
-                    >
-                      {score}
+              {scores.map((round, roundIndex) => {
+                const normalizedRound = normalizeRoundScores(round, players.length);
+
+                return (
+                  <tr key={roundIndex} className="group">
+                    <td className="px-2 py-1.5 text-center text-gray-400 text-sm group-hover:bg-gray-700/30 transition-colors sticky left-0 bg-gray-800/50 backdrop-blur-sm">
+                      {roundIndex + 1}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {players.map((player, playerIndex) => {
+                      const score = normalizedRound[playerIndex];
+
+                      return (
+                        <td
+                          key={player.name}
+                          className={`px-2 py-1.5 text-center text-sm group-hover:bg-gray-700/30 transition-colors ${
+                            score === 0 ? 'text-gray-400' :
+                            score > 0 ? 'text-green-400' : 'text-red-400'
+                          }`}
+                        >
+                          {score}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

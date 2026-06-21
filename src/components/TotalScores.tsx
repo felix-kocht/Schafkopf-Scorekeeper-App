@@ -25,7 +25,7 @@ export const TotalScores: React.FC<TotalScoresProps> = ({
         {/* Active Players */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {players.map((player, i) => (
-            <div key={i} className="flex items-center justify-between bg-gray-700/30 p-2 rounded-lg group hover:bg-gray-700/50 transition-colors">
+            <div key={player.name} className="flex items-center justify-between bg-gray-700/30 p-2 rounded-lg group hover:bg-gray-700/50 transition-colors">
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-gray-200 group-hover:text-white transition-colors truncate">
                   {player.name}

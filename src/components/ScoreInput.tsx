@@ -87,7 +87,7 @@ export const ScoreInput: React.FC<ScoreInputProps> = ({
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         {players.map((player, i) => (
-          <div key={i} className="flex items-center gap-2 group">
+          <div key={player.name} className="flex items-center gap-2 group">
             <input
               type="checkbox"
               checked={player.sittingOut}

@@ -1,5 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Users, X } from 'lucide-react';
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, Plus, Trash2, Users, X } from 'lucide-react';
 import { Player, PreviousPlayer } from '../types';
 
 interface PlayerManagementProps {
@@ -8,9 +24,69 @@ interface PlayerManagementProps {
   onAddPlayer: (name: string, initialScore?: number) => void;
   onRemovePlayer: (index: number) => void;
   onRemovePreviousPlayer: (name: string) => void;
+  onReorderPlayers: (fromIndex: number, toIndex: number) => void;
   isOpen: boolean;
   onClose: () => void;
 }
+
+interface SortablePlayerRowProps {
+  player: Player;
+  index: number;
+  onRemovePlayer: (index: number) => void;
+}
+
+const SortablePlayerRow: React.FC<SortablePlayerRowProps> = ({
+  player,
+  index,
+  onRemovePlayer,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: player.name });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between p-2 rounded-lg bg-gray-700/30 group hover:bg-gray-700/50 transition-colors ${
+        isDragging ? 'opacity-70 ring-2 ring-blue-500' : ''
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-600/60 rounded-lg transition-colors touch-none"
+          title="Drag to reorder"
+          aria-label={`Reorder ${player.name}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="text-gray-200 group-hover:text-white transition-colors truncate">
+          {player.name}
+        </span>
+      </div>
+      <button
+        onClick={() => onRemovePlayer(index)}
+        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+        title="Remove player"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+};
 
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({
   players,
@@ -18,12 +94,32 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
   onAddPlayer,
   onRemovePlayer,
   onRemovePreviousPlayer,
+  onReorderPlayers,
   isOpen,
   onClose,
 }) => {
   const [newPlayerName, setNewPlayerName] = useState('');
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   if (!isOpen) return null;
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const fromIndex = players.findIndex(player => player.name === activeId);
+    const toIndex = players.findIndex(player => player.name === overId);
+
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    onReorderPlayers(fromIndex, toIndex);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,23 +199,27 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
 
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-gray-300 mb-2">Current Players</h3>
-          {players.map((player, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between p-2 rounded-lg bg-gray-700/30 group hover:bg-gray-700/50 transition-colors"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={players.map(player => player.name)}
+              strategy={verticalListSortingStrategy}
             >
-              <span className="text-gray-200 group-hover:text-white transition-colors">
-                {player.name}
-              </span>
-              <button
-                onClick={() => onRemovePlayer(index)}
-                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                title="Remove player"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+              <div className="space-y-2">
+                {players.map((player, index) => (
+                  <SortablePlayerRow
+                    key={player.name}
+                    player={player}
+                    index={index}
+                    onRemovePlayer={onRemovePlayer}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings2, Users } from 'lucide-react';
 import { PlayerSetup } from './components/PlayerSetup';
 import { ScoreInput } from './components/ScoreInput';
@@ -9,9 +9,15 @@ import { PlayerManagement } from './components/PlayerManagement';
 import { Footer } from './components/Footer';
 import { Imprint } from './pages/Imprint';
 import { Player, PreviousPlayer } from './types';
-import { useSettings } from './contexts/SettingsContext';
 import { useAuth } from './contexts/AuthContext';
-import { calculateTotalScores } from './utils/scoreUtils';
+import { calculateTotalScores, normalizeRoundScores } from './utils/scoreUtils';
+
+const moveArrayItem = <T,>(items: T[], fromIndex: number, toIndex: number): T[] => {
+  const updatedItems = [...items];
+  const [movedItem] = updatedItems.splice(fromIndex, 1);
+  updatedItems.splice(toIndex, 0, movedItem);
+  return updatedItems;
+};
 
 function App() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -20,7 +26,6 @@ function App() {
   const [showSetup, setShowSetup] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showPlayerManagement, setShowPlayerManagement] = useState(false);
-  const { settings } = useSettings();
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -107,6 +112,28 @@ function App() {
     const updatedPreviousPlayers = previousPlayers.filter(p => p.name !== name);
     setPreviousPlayers(updatedPreviousPlayers);
     localStorage.setItem('previousPlayers', JSON.stringify(updatedPreviousPlayers));
+  };
+
+  const handleReorderPlayers = (fromIndex: number, toIndex: number) => {
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= players.length ||
+      toIndex >= players.length
+    ) {
+      return;
+    }
+
+    const updatedPlayers = moveArrayItem(players, fromIndex, toIndex);
+    const updatedScores = scores.map(roundScores =>
+      moveArrayItem(normalizeRoundScores(roundScores, players.length), fromIndex, toIndex)
+    );
+
+    setPlayers(updatedPlayers);
+    setScores(updatedScores);
+    localStorage.setItem('players', JSON.stringify(updatedPlayers));
+    localStorage.setItem('scores', JSON.stringify(updatedScores));
   };
 
   const handleScoreSubmit = (newScores: number[]) => {
@@ -218,6 +245,7 @@ function App() {
           onAddPlayer={handleAddPlayer}
           onRemovePlayer={handleRemovePlayer}
           onRemovePreviousPlayer={handleRemovePreviousPlayer}
+          onReorderPlayers={handleReorderPlayers}
         />
 
         <Settings

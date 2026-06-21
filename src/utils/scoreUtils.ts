@@ -1,11 +1,13 @@
 export const calculateTotalScores = (scores: number[][], playerCount: number): number[] => {
   return Array(playerCount).fill(0).map((_, playerIndex) =>
     scores.reduce((sum, round) => {
-      // If this round doesn't have a score for this player (added later), return current sum
-      if (playerIndex >= round.length) return sum;
-      return sum + round[playerIndex];
+      return sum + (round[playerIndex] ?? 0);
     }, 0)
   );
+};
+
+export const normalizeRoundScores = (round: number[], playerCount: number): number[] => {
+  return Array.from({ length: playerCount }, (_, playerIndex) => round[playerIndex] ?? 0);
 };
 
 export const isValidScore = (score: number, minimumUnit: number): boolean => {
@@ -67,7 +69,7 @@ export const generateCSV = (players: string[], scores: number[][]): string => {
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += players.join(',') + '\n';
   scores.forEach(round => {
-    csvContent += round.join(',') + '\n';
+    csvContent += normalizeRoundScores(round, players.length).join(',') + '\n';
   });
   csvContent += '\nTotal Scores\n';
   const totalScores = calculateTotalScores(scores, players.length);

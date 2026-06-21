@@ -16,7 +16,7 @@ export const TotalScores: React.FC<TotalScoresProps> = ({
   previousPlayers 
 }) => {
   const { settings } = useSettings();
-  const totalScores = calculateTotalScores(scores, players.length);
+  const totalScores = calculateTotalScores(scores, players.length, players.map(player => player.score));
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 shadow-xl border border-gray-700">

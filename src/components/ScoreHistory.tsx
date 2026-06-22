@@ -19,7 +19,8 @@ export const ScoreHistory: React.FC<ScoreHistoryProps> = ({
   const handleDownload = () => {
     const csvContent = generateCSV(
       players.map(p => p.name),
-      scores
+      scores,
+      players.map(p => p.score)
     );
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');

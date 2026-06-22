@@ -1,8 +1,12 @@
-export const calculateTotalScores = (scores: number[][], playerCount: number): number[] => {
+export const calculateTotalScores = (
+  scores: number[][],
+  playerCount: number,
+  initialScores: number[] = []
+): number[] => {
   return Array(playerCount).fill(0).map((_, playerIndex) =>
     scores.reduce((sum, round) => {
       return sum + (round[playerIndex] ?? 0);
-    }, 0)
+    }, initialScores[playerIndex] ?? 0)
   );
 };
 
@@ -65,14 +69,18 @@ export const generateRedCardScores = (playerIndex: number, playerCount: number, 
   );
 };
 
-export const generateCSV = (players: string[], scores: number[][]): string => {
+export const generateCSV = (
+  players: string[],
+  scores: number[][],
+  initialScores: number[] = []
+): string => {
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += players.join(',') + '\n';
   scores.forEach(round => {
     csvContent += normalizeRoundScores(round, players.length).join(',') + '\n';
   });
   csvContent += '\nTotal Scores\n';
-  const totalScores = calculateTotalScores(scores, players.length);
+  const totalScores = calculateTotalScores(scores, players.length, initialScores);
   csvContent += players.map((name, i) => `${name},${totalScores[i]}`).join('\n');
   return csvContent;
 };

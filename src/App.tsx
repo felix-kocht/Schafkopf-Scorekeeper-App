@@ -82,7 +82,7 @@ function App() {
 
   const handleRemovePlayer = (index: number) => {
     const playerToRemove = players[index];
-    const totalScores = calculateTotalScores(scores, players.length);
+    const totalScores = calculateTotalScores(scores, players.length, players.map(player => player.score));
     const finalScore = totalScores[index];
 
     // Add to previous players

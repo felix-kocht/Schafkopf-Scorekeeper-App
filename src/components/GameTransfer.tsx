@@ -13,6 +13,7 @@ interface GameTransferProps {
   previousPlayers: PreviousPlayer[];
   settings: Settings;
   onImport: (gameState: GameStateTransferData) => void;
+  showExport?: boolean;
 }
 
 const scannerElementId = 'game-state-qr-scanner';
@@ -25,6 +26,7 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
   previousPlayers,
   settings,
   onImport,
+  showExport = true,
 }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [exportError, setExportError] = useState('');
@@ -57,21 +59,21 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !showExport) return;
 
     setQrCodeUrl('');
     setExportError('');
 
     QRCode.toDataURL(gameStatePayload, {
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'L',
       margin: 2,
-      width: 288,
+      width: 320,
     })
       .then(setQrCodeUrl)
       .catch(() => {
         setExportError('This game state is too large for one QR code.');
       });
-  }, [gameStatePayload, isOpen]);
+  }, [gameStatePayload, isOpen, showExport]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -133,7 +135,7 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-100 flex items-center gap-2">
             <QrCode className="h-5 w-5" />
-            Game Transfer
+            {showExport ? 'Game Transfer' : 'Import Game'}
           </h2>
           <button
             onClick={onClose}
@@ -144,23 +146,25 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
         </div>
 
         <div className="space-y-6">
-          <section>
-            <h3 className="text-sm font-medium text-gray-300 mb-3">Export</h3>
-            <div className="flex justify-center rounded-lg bg-white p-3">
-              {qrCodeUrl ? (
-                <img src={qrCodeUrl} alt="Game state QR code" className="h-72 w-72" />
-              ) : (
-                <div className="h-72 w-72 flex items-center justify-center text-sm text-gray-500">
-                  {exportError || 'Generating QR code...'}
-                </div>
+          {showExport && (
+            <section>
+              <h3 className="text-sm font-medium text-gray-300 mb-3">Export</h3>
+              <div className="flex justify-center rounded-lg bg-white p-3">
+                {qrCodeUrl ? (
+                  <img src={qrCodeUrl} alt="Game state QR code" className="h-80 w-80" />
+                ) : (
+                  <div className="h-80 w-80 flex items-center justify-center text-sm text-gray-500">
+                    {exportError || 'Generating QR code...'}
+                  </div>
+                )}
+              </div>
+              {exportError && (
+                <p className="mt-2 text-sm text-red-400">{exportError}</p>
               )}
-            </div>
-            {exportError && (
-              <p className="mt-2 text-sm text-red-400">{exportError}</p>
-            )}
-          </section>
+            </section>
+          )}
 
-          <section className="border-t border-gray-700 pt-6">
+          <section className={showExport ? 'border-t border-gray-700 pt-6' : ''}>
             <h3 className="text-sm font-medium text-gray-300 mb-3">Import</h3>
             <div id={scannerElementId} className="overflow-hidden rounded-lg bg-gray-900/70" />
             {scanError && (

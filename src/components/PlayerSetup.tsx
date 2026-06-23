@@ -1,10 +1,12 @@
 import React from 'react';
+import { QrCode } from 'lucide-react';
 
 interface PlayerSetupProps {
   onSubmit: (players: string[]) => void;
+  onImportClick: () => void;
 }
 
-export const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSubmit }) => {
+export const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSubmit, onImportClick }) => {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -58,6 +60,16 @@ export const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSubmit }) => {
             Start Game
           </button>
         </form>
+        <div className="mt-4 border-t border-gray-700 pt-4">
+          <button
+            type="button"
+            onClick={onImportClick}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <QrCode className="h-5 w-5" />
+            Import Game
+          </button>
+        </div>
       </div>
     </div>
   );

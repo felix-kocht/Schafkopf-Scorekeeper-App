@@ -65,11 +65,40 @@ function App() {
     localStorage.setItem('previousPlayers', JSON.stringify([]));
   };
 
+  const handleImportGameState = (gameState: GameStateTransferData) => {
+    setPlayers(gameState.players);
+    setScores(gameState.scores);
+    setPreviousPlayers(gameState.previousPlayers);
+    setShowSetup(gameState.players.length === 0);
+    updateSettings(gameState.settings);
+    localStorage.setItem('players', JSON.stringify(gameState.players));
+    localStorage.setItem('scores', JSON.stringify(gameState.scores));
+    localStorage.setItem('previousPlayers', JSON.stringify(gameState.previousPlayers));
+    localStorage.setItem('schafkopf-settings', JSON.stringify(gameState.settings));
+  };
+
   const path = window.location.pathname;
   if (path === '/imprint') return <Imprint />;
 
   if (showSetup) {
-    return <PlayerSetup onSubmit={handlePlayerSetup} />;
+    return (
+      <>
+        <PlayerSetup
+          onSubmit={handlePlayerSetup}
+          onImportClick={() => setShowGameTransfer(true)}
+        />
+        <GameTransfer
+          isOpen={showGameTransfer}
+          onClose={() => setShowGameTransfer(false)}
+          players={[]}
+          scores={[]}
+          previousPlayers={[]}
+          settings={settings}
+          onImport={handleImportGameState}
+          showExport={false}
+        />
+      </>
+    );
   }
 
   const handleAddPlayer = (name: string, initialScore: number = 0, scoreHistory?: number[]) => {
@@ -201,18 +230,6 @@ function App() {
       localStorage.removeItem('scores');
       localStorage.removeItem('previousPlayers');
     }
-  };
-
-  const handleImportGameState = (gameState: GameStateTransferData) => {
-    setPlayers(gameState.players);
-    setScores(gameState.scores);
-    setPreviousPlayers(gameState.previousPlayers);
-    setShowSetup(gameState.players.length === 0);
-    updateSettings(gameState.settings);
-    localStorage.setItem('players', JSON.stringify(gameState.players));
-    localStorage.setItem('scores', JSON.stringify(gameState.scores));
-    localStorage.setItem('previousPlayers', JSON.stringify(gameState.previousPlayers));
-    localStorage.setItem('schafkopf-settings', JSON.stringify(gameState.settings));
   };
 
   return (

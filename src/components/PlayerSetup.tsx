@@ -11,13 +11,14 @@ export const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSubmit, onImportClic
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const playerNames = formData.get('players')?.toString().split(',').map(name => name.trim()) || [];
+    const isBobImport = playerNames.length === 1 && playerNames[0].toLowerCase() === 'bob';
     
     if (playerNames.length > 12) {
       alert('Please enter no more than 12 players');
       return;
     }
 
-    if (playerNames.length < 2) {
+    if (playerNames.length < 2 && !isBobImport) {
       alert('Please enter at least 2 players');
       return;
     }

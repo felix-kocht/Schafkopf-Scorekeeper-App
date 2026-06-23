@@ -12,6 +12,7 @@ import { Imprint } from './pages/Imprint';
 import { GameStateTransferData, Player, PreviousPlayer } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
+import { getBobGameState } from './utils/bobGameState';
 import { calculateTotalScores, normalizeRoundScores } from './utils/scoreUtils';
 
 const moveArrayItem = <T,>(items: T[], fromIndex: number, toIndex: number): T[] => {
@@ -49,6 +50,11 @@ function App() {
   }, []);
 
   const handlePlayerSetup = (playerNames: string[]) => {
+    if (playerNames.length === 1 && playerNames[0].toLowerCase() === 'bob') {
+      handleImportGameState(getBobGameState());
+      return;
+    }
+
     const newPlayers = playerNames.map(name => ({
       name,
       score: 0,

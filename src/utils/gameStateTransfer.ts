@@ -3,6 +3,8 @@ import { GameStateTransferData, Player, PreviousPlayer, Settings } from '../type
 
 const LEGACY_TRANSFER_PREFIX = 'schafkopf-scorekeeper:v1:';
 const TRANSFER_PREFIX = 'sk2:';
+const CHUNK_PREFIX = 'skc2:';
+const MAX_SINGLE_QR_PAYLOAD_LENGTH = 600;
 
 type CompactPlayer = [
   name: string,
@@ -27,6 +29,13 @@ type CompactGameStateTransferData = [
   previousPlayers: CompactPreviousPlayer[],
   settings: [minimumUnit: number, enableYellowCards: 0 | 1, redCardPenalty: number, zeroSumMode: 0 | 1]
 ];
+
+export interface GameStatePayloadChunk {
+  id: string;
+  index: number;
+  total: number;
+  data: string;
+}
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
@@ -213,14 +222,69 @@ const parseCompressedPayload = (compressedPayload: string): unknown => {
   return JSON.parse(jsonPayload);
 };
 
-export const createGameStatePayload = (gameState: Omit<GameStateTransferData, 'version' | 'exportedAt'>): string => {
+const createCompressedGameStatePayload = (gameState: Omit<GameStateTransferData, 'version' | 'exportedAt'>): string => {
   const payload: GameStateTransferData = {
     version: 1,
     exportedAt: new Date().toISOString(),
     ...gameState,
   };
 
-  return `${TRANSFER_PREFIX}${compressToEncodedURIComponent(JSON.stringify(compactGameState(payload)))}`;
+  return compressToEncodedURIComponent(JSON.stringify(compactGameState(payload)));
+};
+
+export const createGameStatePayload = (gameState: Omit<GameStateTransferData, 'version' | 'exportedAt'>): string => {
+  return `${TRANSFER_PREFIX}${createCompressedGameStatePayload(gameState)}`;
+};
+
+export const createGameStatePayloads = (gameState: Omit<GameStateTransferData, 'version' | 'exportedAt'>): string[] => {
+  const compressedPayload = createCompressedGameStatePayload(gameState);
+
+  if (`${TRANSFER_PREFIX}${compressedPayload}`.length <= MAX_SINGLE_QR_PAYLOAD_LENGTH) {
+    return [`${TRANSFER_PREFIX}${compressedPayload}`];
+  }
+
+  const transferId = Math.random().toString(36).slice(2, 8);
+  const chunks = compressedPayload.match(new RegExp(`.{1,${MAX_SINGLE_QR_PAYLOAD_LENGTH}}`, 'g')) ?? [];
+
+  return chunks.map((chunk, index) => `${CHUNK_PREFIX}${transferId}:${index + 1}:${chunks.length}:${chunk}`);
+};
+
+export const parseGameStatePayloadChunk = (payload: string): GameStatePayloadChunk | null => {
+  if (!payload.startsWith(CHUNK_PREFIX)) return null;
+
+  const payloadParts = payload.slice(CHUNK_PREFIX.length).split(':');
+  const [id, indexValue, totalValue, ...dataParts] = payloadParts;
+  const index = Number(indexValue);
+  const total = Number(totalValue);
+  const data = dataParts.join(':');
+
+  if (!id || !Number.isInteger(index) || !Number.isInteger(total) || index < 1 || total < 1 || index > total || !data) {
+    throw new Error('The game state QR chunk has an invalid format.');
+  }
+
+  return { id, index, total, data };
+};
+
+export const combineGameStatePayloadChunks = (chunks: GameStatePayloadChunk[]): string => {
+  if (chunks.length === 0) {
+    throw new Error('No QR chunks were scanned.');
+  }
+
+  const [{ id, total }] = chunks;
+  const allChunksMatch = chunks.every(chunk => chunk.id === id && chunk.total === total);
+
+  if (!allChunksMatch || chunks.length !== total) {
+    throw new Error('The scanned QR chunks do not belong to the same game state.');
+  }
+
+  const sortedChunks = [...chunks].sort((a, b) => a.index - b.index);
+  const hasEveryChunk = sortedChunks.every((chunk, index) => chunk.index === index + 1);
+
+  if (!hasEveryChunk) {
+    throw new Error('At least one QR chunk is missing.');
+  }
+
+  return `${TRANSFER_PREFIX}${sortedChunks.map(chunk => chunk.data).join('')}`;
 };
 
 export const parseGameStatePayload = (payload: string): GameStateTransferData => {

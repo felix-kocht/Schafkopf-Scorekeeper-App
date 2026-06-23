@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, QrCode, X } from 'lucide-react';
+import { Camera, Check, ChevronLeft, ChevronRight, QrCode, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { GameStateTransferData, Player, PreviousPlayer, Settings } from '../types';
-import { createGameStatePayload, parseGameStatePayload } from '../utils/gameStateTransfer';
+import {
+  combineGameStatePayloadChunks,
+  createGameStatePayloads,
+  parseGameStatePayload,
+  parseGameStatePayloadChunk,
+  type GameStatePayloadChunk,
+} from '../utils/gameStateTransfer';
 
 interface GameTransferProps {
   isOpen: boolean;
@@ -28,22 +34,28 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
   onImport,
   showExport = true,
 }) => {
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [qrCodeUrls, setQrCodeUrls] = useState<string[]>([]);
+  const [activeQrIndex, setActiveQrIndex] = useState(0);
   const [exportError, setExportError] = useState('');
   const [scanError, setScanError] = useState('');
+  const [scanStatus, setScanStatus] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [pendingImport, setPendingImport] = useState<GameStateTransferData | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannedChunksRef = useRef<GameStatePayloadChunk[]>([]);
 
-  const gameStatePayload = useMemo(
-    () => createGameStatePayload({ players, scores, previousPlayers, settings }),
+  const gameStatePayloads = useMemo(
+    () => createGameStatePayloads({ players, scores, previousPlayers, settings }),
     [players, scores, previousPlayers, settings]
   );
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
 
-    if (!scanner) return;
+    if (!scanner) {
+      setIsScanning(false);
+      return;
+    }
 
     try {
       if (scanner.isScanning) {
@@ -61,24 +73,31 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
   useEffect(() => {
     if (!isOpen || !showExport) return;
 
-    setQrCodeUrl('');
+    setQrCodeUrls([]);
+    setActiveQrIndex(0);
     setExportError('');
 
-    QRCode.toDataURL(gameStatePayload, {
-      errorCorrectionLevel: 'L',
-      margin: 2,
-      width: 320,
-    })
-      .then(setQrCodeUrl)
+    Promise.all(
+      gameStatePayloads.map(payload =>
+        QRCode.toDataURL(payload, {
+          errorCorrectionLevel: 'L',
+          margin: 2,
+          width: 320,
+        })
+      )
+    )
+      .then(setQrCodeUrls)
       .catch(() => {
-        setExportError('This game state is too large for one QR code.');
+        setExportError('This game state could not be converted to QR codes.');
       });
-  }, [gameStatePayload, isOpen, showExport]);
+  }, [gameStatePayloads, isOpen, showExport]);
 
   useEffect(() => {
     if (!isOpen) {
       setPendingImport(null);
       setScanError('');
+      setScanStatus('');
+      scannedChunksRef.current = [];
       void stopScanner();
     }
 
@@ -89,29 +108,69 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
 
   if (!isOpen) return null;
 
+  const activeQrCodeUrl = qrCodeUrls[activeQrIndex];
+  const showExportSection = showExport && !isScanning;
+
+  const processScannedPayload = (decodedText: string) => {
+    try {
+      const payloadChunk = parseGameStatePayloadChunk(decodedText);
+
+      if (payloadChunk) {
+        const existingChunks = scannedChunksRef.current.every(
+          chunk => chunk.id === payloadChunk.id && chunk.total === payloadChunk.total
+        )
+          ? scannedChunksRef.current
+          : [];
+        const nextChunks = [
+          ...existingChunks.filter(chunk => chunk.index !== payloadChunk.index),
+          payloadChunk,
+        ].sort((a, b) => a.index - b.index);
+
+        scannedChunksRef.current = nextChunks;
+
+        if (nextChunks.length === payloadChunk.total) {
+          const gameState = parseGameStatePayload(combineGameStatePayloadChunks(nextChunks));
+          setPendingImport(gameState);
+          setScanError('');
+          setScanStatus('');
+          scannedChunksRef.current = [];
+          void stopScanner();
+          return;
+        }
+
+        setScanError('');
+        setScanStatus(`Scanned ${nextChunks.length} of ${payloadChunk.total} QR codes.`);
+        return;
+      }
+
+      const gameState = parseGameStatePayload(decodedText);
+      setPendingImport(gameState);
+      setScanError('');
+      setScanStatus('');
+      scannedChunksRef.current = [];
+      void stopScanner();
+    } catch (error) {
+      setScanStatus('');
+      setScanError(error instanceof Error ? error.message : 'The QR code could not be imported.');
+    }
+  };
+
   const startScanner = async () => {
     setPendingImport(null);
     setScanError('');
+    setScanStatus('');
+    scannedChunksRef.current = [];
+    setIsScanning(true);
 
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode(scannerElementId);
       scannerRef.current = scanner;
-      setIsScanning(true);
 
       await scanner.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 240, height: 240 } },
-        async (decodedText) => {
-          try {
-            const gameState = parseGameStatePayload(decodedText);
-            setPendingImport(gameState);
-            setScanError('');
-            await stopScanner();
-          } catch (error) {
-            setScanError(error instanceof Error ? error.message : 'The QR code could not be imported.');
-          }
-        },
+        processScannedPayload,
         undefined
       );
     } catch {
@@ -146,27 +205,64 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
         </div>
 
         <div className="space-y-6">
-          {showExport && (
+          {showExportSection && (
             <section>
               <h3 className="text-sm font-medium text-gray-300 mb-3">Export</h3>
               <div className="flex justify-center rounded-lg bg-white p-3">
-                {qrCodeUrl ? (
-                  <img src={qrCodeUrl} alt="Game state QR code" className="h-80 w-80" />
+                {activeQrCodeUrl ? (
+                  <img
+                    src={activeQrCodeUrl}
+                    alt={`Game state QR code ${activeQrIndex + 1} of ${qrCodeUrls.length}`}
+                    className="h-80 w-80"
+                  />
                 ) : (
                   <div className="h-80 w-80 flex items-center justify-center text-sm text-gray-500">
                     {exportError || 'Generating QR code...'}
                   </div>
                 )}
               </div>
+              {qrCodeUrls.length > 1 && (
+                <>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrIndex(index => Math.max(0, index - 1))}
+                      disabled={activeQrIndex === 0}
+                      aria-label="Previous QR code"
+                      className="p-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-200" />
+                    </button>
+                    <span className="text-sm text-gray-300">
+                      QR {activeQrIndex + 1} of {qrCodeUrls.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrIndex(index => Math.min(qrCodeUrls.length - 1, index + 1))}
+                      disabled={activeQrIndex === qrCodeUrls.length - 1}
+                      aria-label="Next QR code"
+                      className="p-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <ChevronRight className="h-5 w-5 text-gray-200" />
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-400">
+                    Scan all QR codes in any order to import larger game states.
+                  </p>
+                </>
+              )}
               {exportError && (
                 <p className="mt-2 text-sm text-red-400">{exportError}</p>
               )}
             </section>
           )}
 
-          <section className={showExport ? 'border-t border-gray-700 pt-6' : ''}>
+          <section className={showExportSection ? 'border-t border-gray-700 pt-6' : ''}>
             <h3 className="text-sm font-medium text-gray-300 mb-3">Import</h3>
             <div id={scannerElementId} className="overflow-hidden rounded-lg bg-gray-900/70" />
+            {scanStatus && (
+              <p className="mt-2 text-sm text-gray-300">{scanStatus}</p>
+            )}
             {scanError && (
               <p className="mt-2 text-sm text-red-400">{scanError}</p>
             )}

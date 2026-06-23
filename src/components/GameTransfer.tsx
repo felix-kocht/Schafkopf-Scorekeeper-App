@@ -24,6 +24,22 @@ interface GameTransferProps {
 
 const scannerElementId = 'game-state-qr-scanner';
 
+const getResponsiveQrBox = (viewfinderWidth: number, viewfinderHeight: number) => {
+  const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+  const maxEdge = Math.max(1, minEdge - 16);
+  const preferredEdge = Math.floor(minEdge * 0.92);
+  const edge = Math.floor(Math.min(Math.max(preferredEdge, 280), 420, maxEdge));
+
+  return { width: edge, height: edge };
+};
+
+const cameraConstraints: MediaTrackConstraints = {
+  facingMode: { ideal: 'environment' },
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 15, max: 30 },
+};
+
 export const GameTransfer: React.FC<GameTransferProps> = ({
   isOpen,
   onClose,
@@ -163,13 +179,19 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
     setIsScanning(true);
 
     try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode(scannerElementId);
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      const scanner = new Html5Qrcode(scannerElementId, {
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      });
       scannerRef.current = scanner;
 
       await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        cameraConstraints,
+        {
+          fps: 12,
+          qrbox: getResponsiveQrBox,
+          disableFlip: true,
+        },
         processScannedPayload,
         undefined
       );
@@ -259,7 +281,10 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
 
           <section className={showExportSection ? 'border-t border-gray-700 pt-6' : ''}>
             <h3 className="text-sm font-medium text-gray-300 mb-3">Import</h3>
-            <div id={scannerElementId} className="overflow-hidden rounded-lg bg-gray-900/70" />
+            <div
+              id={scannerElementId}
+              className={`overflow-hidden rounded-lg bg-gray-900/70 ${isScanning ? 'min-h-80' : ''}`}
+            />
             {scanStatus && (
               <p className="mt-2 text-sm text-gray-300">{scanStatus}</p>
             )}

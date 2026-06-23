@@ -21,7 +21,7 @@ import { Player, PreviousPlayer } from '../types';
 interface PlayerManagementProps {
   players: Player[];
   previousPlayers: PreviousPlayer[];
-  onAddPlayer: (name: string, initialScore?: number) => void;
+  onAddPlayer: (name: string, initialScore?: number, scoreHistory?: number[]) => void;
   onRemovePlayer: (index: number) => void;
   onRemovePreviousPlayer: (name: string) => void;
   onReorderPlayers: (fromIndex: number, toIndex: number) => void;
@@ -88,6 +88,13 @@ const SortablePlayerRow: React.FC<SortablePlayerRowProps> = ({
   );
 };
 
+const getPreviousPlayerInitialScore = (player: PreviousPlayer): number => {
+  if (!player.scoreHistory) return player.finalScore;
+
+  const scoreHistoryTotal = player.scoreHistory.reduce((sum, score) => sum + score, 0);
+  return player.initialScore ?? player.finalScore - scoreHistoryTotal;
+};
+
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({
   players,
   previousPlayers,
@@ -99,6 +106,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
   onClose,
 }) => {
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [restoreCandidate, setRestoreCandidate] = useState<PreviousPlayer | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -136,18 +144,25 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
     );
 
     if (previousPlayer) {
-      const wantsToRestore = confirm(
-        `${previousPlayer.name} was previously in the game with a score of ${previousPlayer.finalScore}. Would you like to add them back with their previous score?`
-      );
-
-      if (wantsToRestore) {
-        onAddPlayer(previousPlayer.name, previousPlayer.finalScore);
-        onRemovePreviousPlayer(previousPlayer.name);
-      }
+      setRestoreCandidate(previousPlayer);
+      return;
     } else {
       onAddPlayer(newPlayerName.trim());
     }
 
+    setNewPlayerName('');
+  };
+
+  const handleRestorePreviousPlayer = () => {
+    if (!restoreCandidate) return;
+
+    onAddPlayer(
+      restoreCandidate.name,
+      getPreviousPlayerInitialScore(restoreCandidate),
+      restoreCandidate.scoreHistory
+    );
+    onRemovePreviousPlayer(restoreCandidate.name);
+    setRestoreCandidate(null);
     setNewPlayerName('');
   };
 
@@ -193,6 +208,29 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
               <p className="mt-2 text-sm text-red-400">
                 Maximum number of players (12) reached
               </p>
+            )}
+            {restoreCandidate && (
+              <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+                <p className="text-sm text-blue-200">
+                  {restoreCandidate.name} was previously in the game with a score of {restoreCandidate.finalScore}.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRestorePreviousPlayer}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg transition-colors"
+                  >
+                    Restore Score
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRestoreCandidate(null)}
+                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </form>

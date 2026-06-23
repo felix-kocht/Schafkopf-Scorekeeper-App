@@ -9,6 +9,17 @@ export interface PreviousPlayer {
   name: string;
   finalScore: number;
   removedAt: string;
+  scoreHistory?: number[];
+  initialScore?: number;
+}
+
+export interface GameStateTransferData {
+  version: 1;
+  exportedAt: string;
+  players: Player[];
+  scores: number[][];
+  previousPlayers: PreviousPlayer[];
+  settings: Settings;
 }
 
 export interface ScoreInputProps {

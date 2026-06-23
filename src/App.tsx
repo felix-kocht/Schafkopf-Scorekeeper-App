@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Settings2, Users } from 'lucide-react';
+import { QrCode, Settings2, Users } from 'lucide-react';
 import { PlayerSetup } from './components/PlayerSetup';
 import { ScoreInput } from './components/ScoreInput';
 import { ScoreHistory } from './components/ScoreHistory';
 import { TotalScores } from './components/TotalScores';
 import { Settings } from './components/Settings';
 import { PlayerManagement } from './components/PlayerManagement';
+import { GameTransfer } from './components/GameTransfer';
 import { Footer } from './components/Footer';
 import { Imprint } from './pages/Imprint';
-import { Player, PreviousPlayer } from './types';
+import { GameStateTransferData, Player, PreviousPlayer } from './types';
 import { useAuth } from './contexts/AuthContext';
+import { useSettings } from './contexts/SettingsContext';
 import { calculateTotalScores, normalizeRoundScores } from './utils/scoreUtils';
 
 const moveArrayItem = <T,>(items: T[], fromIndex: number, toIndex: number): T[] => {
@@ -26,7 +28,9 @@ function App() {
   const [showSetup, setShowSetup] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showPlayerManagement, setShowPlayerManagement] = useState(false);
+  const [showGameTransfer, setShowGameTransfer] = useState(false);
   const { signOut } = useAuth();
+  const { settings, updateSettings } = useSettings();
 
   useEffect(() => {
     const storedPlayers = localStorage.getItem('players');
@@ -68,7 +72,7 @@ function App() {
     return <PlayerSetup onSubmit={handlePlayerSetup} />;
   }
 
-  const handleAddPlayer = (name: string, initialScore: number = 0) => {
+  const handleAddPlayer = (name: string, initialScore: number = 0, scoreHistory?: number[]) => {
     const newPlayer: Player = {
       name,
       score: initialScore,
@@ -76,20 +80,33 @@ function App() {
       sittingOut: false
     };
     const updatedPlayers = [...players, newPlayer];
+    const updatedScores = scoreHistory
+      ? scores.map((roundScores, roundIndex) => [
+          ...normalizeRoundScores(roundScores, players.length),
+          scoreHistory[roundIndex] ?? 0
+        ])
+      : scores;
+
     setPlayers(updatedPlayers);
+    setScores(updatedScores);
     localStorage.setItem('players', JSON.stringify(updatedPlayers));
+    localStorage.setItem('scores', JSON.stringify(updatedScores));
   };
 
   const handleRemovePlayer = (index: number) => {
     const playerToRemove = players[index];
     const totalScores = calculateTotalScores(scores, players.length, players.map(player => player.score));
     const finalScore = totalScores[index];
+    const normalizedScores = scores.map(roundScores => normalizeRoundScores(roundScores, players.length));
+    const scoreHistory = normalizedScores.map(roundScores => roundScores[index] ?? 0);
 
     // Add to previous players
     const newPreviousPlayer: PreviousPlayer = {
       name: playerToRemove.name,
       finalScore: finalScore,
-      removedAt: new Date().toISOString()
+      removedAt: new Date().toISOString(),
+      scoreHistory,
+      initialScore: playerToRemove.score
     };
     const updatedPreviousPlayers = [...previousPlayers, newPreviousPlayer];
     setPreviousPlayers(updatedPreviousPlayers);
@@ -101,7 +118,7 @@ function App() {
     localStorage.setItem('players', JSON.stringify(updatedPlayers));
 
     // Remove player's scores from history
-    const updatedScores = scores.map(roundScores => 
+    const updatedScores = normalizedScores.map(roundScores =>
       roundScores.filter((_, i) => i !== index)
     );
     setScores(updatedScores);
@@ -186,6 +203,18 @@ function App() {
     }
   };
 
+  const handleImportGameState = (gameState: GameStateTransferData) => {
+    setPlayers(gameState.players);
+    setScores(gameState.scores);
+    setPreviousPlayers(gameState.previousPlayers);
+    setShowSetup(gameState.players.length === 0);
+    updateSettings(gameState.settings);
+    localStorage.setItem('players', JSON.stringify(gameState.players));
+    localStorage.setItem('scores', JSON.stringify(gameState.scores));
+    localStorage.setItem('previousPlayers', JSON.stringify(gameState.previousPlayers));
+    localStorage.setItem('schafkopf-settings', JSON.stringify(gameState.settings));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white p-4 pb-8">
       <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1533134486753-c833f0ed4866?q=80&w=3270&auto=format&fit=crop')] opacity-5 bg-cover bg-center pointer-events-none" />
@@ -199,6 +228,13 @@ function App() {
                 title="Manage Players"
               >
                 <Users className="h-5 w-5 text-gray-400" />
+              </button>
+              <button
+                onClick={() => setShowGameTransfer(true)}
+                className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                title="Transfer game"
+              >
+                <QrCode className="h-5 w-5 text-gray-400" />
               </button>
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
@@ -246,6 +282,16 @@ function App() {
           onRemovePlayer={handleRemovePlayer}
           onRemovePreviousPlayer={handleRemovePreviousPlayer}
           onReorderPlayers={handleReorderPlayers}
+        />
+
+        <GameTransfer
+          isOpen={showGameTransfer}
+          onClose={() => setShowGameTransfer(false)}
+          players={players}
+          scores={scores}
+          previousPlayers={previousPlayers}
+          settings={settings}
+          onImport={handleImportGameState}
         />
 
         <Settings

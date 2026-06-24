@@ -19,6 +19,22 @@ interface StoredGameSession {
   state: GameSessionState;
 }
 
+interface FirestoreIndexedList<T> {
+  length: number;
+  items: Record<string, T>;
+}
+
+interface FirestoreRoundScores {
+  values: number[];
+}
+
+interface FirestoreGameSessionState {
+  players: Player[];
+  scores: FirestoreIndexedList<FirestoreRoundScores>;
+  previousPlayers: FirestoreIndexedList<PreviousPlayer>;
+  settings: Settings;
+}
+
 const sessionsCollection = 'gameSessions';
 const joinCodesCollection = 'gameSessionJoinCodes';
 
@@ -74,6 +90,29 @@ const sanitizeState = (state: GameSessionState): GameSessionState => ({
   },
 });
 
+const createIndexedList = <T,>(items: T[]): FirestoreIndexedList<T> => ({
+  length: items.length,
+  items: items.reduce<Record<string, T>>((indexedItems, item, index) => {
+    indexedItems[index.toString()] = item;
+    return indexedItems;
+  }, {}),
+});
+
+const toFirestoreState = (state: GameSessionState): FirestoreGameSessionState => {
+  const sanitizedState = sanitizeState(state);
+
+  return {
+    players: sanitizedState.players,
+    scores: createIndexedList(
+      sanitizedState.scores.map((roundScores): FirestoreRoundScores => ({
+        values: roundScores,
+      }))
+    ),
+    previousPlayers: createIndexedList(sanitizedState.previousPlayers),
+    settings: sanitizedState.settings,
+  };
+};
+
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
 };
@@ -84,6 +123,10 @@ const isFiniteNumber = (value: unknown): value is number => {
 
 const isNumberArray = (value: unknown): value is number[] => {
   return Array.isArray(value) && value.every(isFiniteNumber);
+};
+
+const isNonNegativeInteger = (value: unknown): value is number => {
+  return Number.isInteger(value) && Number(value) >= 0;
 };
 
 const isPlayer = (value: unknown): value is Player => {
@@ -117,27 +160,83 @@ const isSettings = (value: unknown): value is Settings => {
   );
 };
 
-const isGameSessionState = (value: unknown): value is GameSessionState => {
+const isFirestoreRoundScores = (value: unknown): value is FirestoreRoundScores => {
   return (
     isObject(value) &&
-    Array.isArray(value.players) &&
-    value.players.every(isPlayer) &&
-    Array.isArray(value.scores) &&
-    value.scores.every(isNumberArray) &&
-    Array.isArray(value.previousPlayers) &&
-    value.previousPlayers.every(isPreviousPlayer) &&
-    isSettings(value.settings)
+    isNumberArray(value.values)
   );
 };
 
+const isFirestoreIndexedList = <T,>(
+  value: unknown,
+  isItem: (item: unknown) => item is T
+): value is FirestoreIndexedList<T> => {
+  if (!isObject(value) || !isNonNegativeInteger(value.length) || !isObject(value.items)) {
+    return false;
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    if (!isItem(value.items[index.toString()])) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const readIndexedList = <T,>(list: FirestoreIndexedList<T>): T[] => {
+  return Array.from({ length: list.length }, (_, index) => list.items[index.toString()]);
+};
+
+const readStoredScores = (value: unknown): number[][] => {
+  if (Array.isArray(value) && value.every(isNumberArray)) {
+    return value.map(roundScores => roundScores.map(score => score));
+  }
+
+  if (isFirestoreIndexedList(value, isFirestoreRoundScores)) {
+    return readIndexedList(value).map(roundScores => roundScores.values.map(score => score));
+  }
+
+  throw new Error('Online session has an invalid score format.');
+};
+
+const readStoredPreviousPlayers = (value: unknown): PreviousPlayer[] => {
+  if (Array.isArray(value) && value.every(isPreviousPlayer)) {
+    return value.map(sanitizePreviousPlayer);
+  }
+
+  if (isFirestoreIndexedList(value, isPreviousPlayer)) {
+    return readIndexedList(value).map(sanitizePreviousPlayer);
+  }
+
+  throw new Error('Online session has an invalid previous player format.');
+};
+
+const readStoredState = (value: unknown): GameSessionState => {
+  if (!isObject(value)) {
+    throw new Error('Online session has an invalid format.');
+  }
+
+  if (!Array.isArray(value.players) || !value.players.every(isPlayer) || !isSettings(value.settings)) {
+    throw new Error('Online session has an invalid format.');
+  }
+
+  return sanitizeState({
+    players: value.players,
+    scores: readStoredScores(value.scores),
+    previousPlayers: readStoredPreviousPlayers(value.previousPlayers),
+    settings: value.settings,
+  });
+};
+
 const getStoredSession = (data: unknown): StoredGameSession => {
-  if (!isObject(data) || typeof data.joinCode !== 'string' || !isGameSessionState(data.state)) {
+  if (!isObject(data) || typeof data.joinCode !== 'string') {
     throw new Error('Online session has an invalid format.');
   }
 
   return {
     joinCode: data.joinCode,
-    state: sanitizeState(data.state),
+    state: readStoredState(data.state),
   };
 };
 
@@ -172,7 +271,7 @@ export const createGameSession = async (state: GameSessionState): Promise<Online
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     revision: 1,
-    state: sanitizeState(state),
+    state: toFirestoreState(state),
   });
   batch.set(memberRef, {
     role: 'owner',
@@ -236,7 +335,7 @@ export const updateGameSessionState = async (sessionId: string, state: GameSessi
   const { db } = getFirebaseServices();
 
   await updateDoc(doc(db, sessionsCollection, sessionId), {
-    state: sanitizeState(state),
+    state: toFirestoreState(state),
     revision: increment(1),
     updatedAt: serverTimestamp(),
     updatedByUid: uid,

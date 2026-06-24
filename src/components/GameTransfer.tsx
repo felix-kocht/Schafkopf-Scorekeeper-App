@@ -33,11 +33,23 @@ const getResponsiveQrBox = (viewfinderWidth: number, viewfinderHeight: number) =
   return { width: edge, height: edge };
 };
 
-const cameraConstraints: MediaTrackConstraints = {
+const preferredCameraConstraints: MediaTrackConstraints = {
   facingMode: { ideal: 'environment' },
   width: { ideal: 1920 },
   height: { ideal: 1080 },
   frameRate: { ideal: 15, max: 30 },
+};
+
+const fallbackCameraConstraints: MediaTrackConstraints[] = [
+  { facingMode: 'environment' },
+  { facingMode: { ideal: 'environment' } },
+  {},
+];
+
+const scannerConfig = {
+  fps: 12,
+  qrbox: getResponsiveQrBox,
+  disableFlip: true,
 };
 
 export const GameTransfer: React.FC<GameTransferProps> = ({
@@ -180,21 +192,42 @@ export const GameTransfer: React.FC<GameTransferProps> = ({
 
     try {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode(scannerElementId, {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      });
-      scannerRef.current = scanner;
+      const cameraCandidates = [preferredCameraConstraints, ...fallbackCameraConstraints];
+      let lastStartError: unknown;
 
-      await scanner.start(
-        cameraConstraints,
-        {
-          fps: 12,
-          qrbox: getResponsiveQrBox,
-          disableFlip: true,
-        },
-        processScannedPayload,
-        undefined
-      );
+      for (const cameraCandidate of cameraCandidates) {
+        const scanner = new Html5Qrcode(scannerElementId, {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        });
+        scannerRef.current = scanner;
+
+        try {
+          await scanner.start(
+            cameraCandidate,
+            scannerConfig,
+            processScannedPayload,
+            undefined
+          );
+          return;
+        } catch (error) {
+          lastStartError = error;
+
+          try {
+            if (scanner.isScanning) {
+              await scanner.stop();
+            }
+            scanner.clear();
+          } catch {
+            // Keep trying simpler camera constraints.
+          }
+
+          if (scannerRef.current === scanner) {
+            scannerRef.current = null;
+          }
+        }
+      }
+
+      throw lastStartError;
     } catch {
       scannerRef.current = null;
       setIsScanning(false);

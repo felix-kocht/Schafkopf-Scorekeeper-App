@@ -4,7 +4,7 @@ import { GameStateTransferData, Player, PreviousPlayer, Settings } from '../type
 const LEGACY_TRANSFER_PREFIX = 'schafkopf-scorekeeper:v1:';
 const TRANSFER_PREFIX = 'sk2:';
 const CHUNK_PREFIX = 'skc2:';
-const MAX_SINGLE_QR_PAYLOAD_LENGTH = 600;
+const MAX_SINGLE_QR_PAYLOAD_LENGTH = 400;
 
 type CompactPlayer = [
   name: string,

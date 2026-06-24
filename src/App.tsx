@@ -107,11 +107,14 @@ function App() {
     }, 0);
   }, [persistLocalGameState]);
 
-  const connectOnlineSession = useCallback((session: OnlineGameSession) => {
+  const connectOnlineSession = useCallback((
+    session: OnlineGameSession,
+    options: { markOnlineImmediately?: boolean } = {}
+  ) => {
     unsubscribeOnlineSessionRef.current?.();
     onlineSessionRef.current = session;
     setOnlineSession(session);
-    setSyncStatus('connecting');
+    setSyncStatus(options.markOnlineImmediately ? 'online' : 'connecting');
     setSyncError('');
     localStorage.setItem(onlineSessionStorageKey, JSON.stringify(session));
 
@@ -188,7 +191,7 @@ function App() {
       settings,
     });
 
-    connectOnlineSession(session);
+    connectOnlineSession(session, { markOnlineImmediately: true });
   };
 
   const handleJoinOnlineSession = async (joinCode: string) => {

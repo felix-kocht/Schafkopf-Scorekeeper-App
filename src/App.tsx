@@ -15,6 +15,7 @@ import { useSettings } from './contexts/SettingsContext';
 import { isFirebaseConfigured } from './lib/firebase';
 import {
   createGameSession,
+  getGameSession,
   joinGameSession,
   subscribeToGameSession,
   updateGameSessionState,
@@ -41,9 +42,12 @@ function App() {
   const [onlineSession, setOnlineSession] = useState<OnlineGameSession | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
   const [syncError, setSyncError] = useState('');
+  const [syncMessage, setSyncMessage] = useState('');
   const onlineSessionRef = useRef<OnlineGameSession | null>(null);
   const unsubscribeOnlineSessionRef = useRef<(() => void) | null>(null);
   const applyingRemoteStateRef = useRef(false);
+  const connectionTimeoutRef = useRef<number | null>(null);
+  const didRestoreOnlineSessionRef = useRef(false);
   const { signOut } = useAuth();
   const { settings, updateSettings } = useSettings();
 
@@ -107,34 +111,87 @@ function App() {
     }, 0);
   }, [persistLocalGameState]);
 
+  const clearConnectionTimeout = useCallback(() => {
+    if (connectionTimeoutRef.current !== null) {
+      window.clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+  }, []);
+
   const connectOnlineSession = useCallback((
     session: OnlineGameSession,
-    options: { markOnlineImmediately?: boolean } = {}
+    options: { initialState?: GameSessionState; markOnlineImmediately?: boolean } = {}
   ) => {
+    let listenerConfirmed = false;
+
     unsubscribeOnlineSessionRef.current?.();
+    clearConnectionTimeout();
     onlineSessionRef.current = session;
     setOnlineSession(session);
     setSyncStatus(options.markOnlineImmediately ? 'online' : 'connecting');
     setSyncError('');
+    setSyncMessage(options.markOnlineImmediately ? 'Session created. Waiting for live sync confirmation.' : 'Connecting to Firebase...');
     localStorage.setItem(onlineSessionStorageKey, JSON.stringify(session));
 
     unsubscribeOnlineSessionRef.current = subscribeToGameSession(
       session.id,
       (remoteState, remoteSession) => {
+        listenerConfirmed = true;
+        clearConnectionTimeout();
         onlineSessionRef.current = remoteSession;
         setOnlineSession(remoteSession);
         localStorage.setItem(onlineSessionStorageKey, JSON.stringify(remoteSession));
         applyRemoteGameState(remoteState);
+        setSyncMessage('Live sync confirmed.');
       },
       (error) => {
+        clearConnectionTimeout();
         setSyncStatus('error');
         setSyncError(error.message);
+        setSyncMessage('Live sync failed.');
       }
     );
-  }, [applyRemoteGameState]);
+
+    connectionTimeoutRef.current = window.setTimeout(() => {
+      if (!listenerConfirmed && onlineSessionRef.current?.id === session.id) {
+        setSyncStatus('error');
+        setSyncError('Live sync did not confirm. Check network, Firebase Authentication, and Firestore rules.');
+        setSyncMessage('No realtime update received after 15 seconds.');
+      }
+    }, 15000);
+
+    if (options.initialState) {
+      applyRemoteGameState(options.initialState);
+      setSyncMessage('Session loaded. Waiting for live sync confirmation.');
+      return;
+    }
+
+    if (!options.markOnlineImmediately) {
+      void getGameSession(session.id)
+        .then(({ session: verifiedSession, state }) => {
+          if (onlineSessionRef.current?.id !== session.id) return;
+
+          onlineSessionRef.current = verifiedSession;
+          setOnlineSession(verifiedSession);
+          localStorage.setItem(onlineSessionStorageKey, JSON.stringify(verifiedSession));
+          applyRemoteGameState(state);
+          setSyncMessage(listenerConfirmed ? 'Live sync confirmed.' : 'Session verified. Waiting for live sync confirmation.');
+        })
+        .catch((error) => {
+          if (onlineSessionRef.current?.id !== session.id) return;
+
+          clearConnectionTimeout();
+          setSyncStatus('error');
+          setSyncError(error instanceof Error ? error.message : 'Online session could not be verified.');
+          setSyncMessage('Session verification failed.');
+        });
+    }
+  }, [applyRemoteGameState, clearConnectionTimeout]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!isFirebaseConfigured || didRestoreOnlineSessionRef.current) return;
+
+    didRestoreOnlineSessionRef.current = true;
 
     const storedOnlineSession = localStorage.getItem(onlineSessionStorageKey);
     if (!storedOnlineSession) return;
@@ -148,10 +205,14 @@ function App() {
       localStorage.removeItem(onlineSessionStorageKey);
     }
 
+  }, [connectOnlineSession]);
+
+  useEffect(() => {
     return () => {
       unsubscribeOnlineSessionRef.current?.();
+      clearConnectionTimeout();
     };
-  }, [connectOnlineSession]);
+  }, [clearConnectionTimeout]);
 
   const handlePlayerSetup = (playerNames: string[]) => {
     if (playerNames.length === 1 && playerNames[0].toLowerCase() === 'bob') {
@@ -184,6 +245,10 @@ function App() {
   };
 
   const handleCreateOnlineSession = async () => {
+    setSyncStatus('connecting');
+    setSyncError('');
+    setSyncMessage('Creating Firebase session...');
+
     const session = await createGameSession({
       players,
       scores,
@@ -197,19 +262,21 @@ function App() {
   const handleJoinOnlineSession = async (joinCode: string) => {
     setSyncStatus('connecting');
     setSyncError('');
+    setSyncMessage('Joining Firebase session...');
 
     const { session, state } = await joinGameSession(joinCode);
-    connectOnlineSession(session);
-    applyRemoteGameState(state);
+    connectOnlineSession(session, { initialState: state });
   };
 
   const handleLeaveOnlineSession = () => {
     unsubscribeOnlineSessionRef.current?.();
+    clearConnectionTimeout();
     unsubscribeOnlineSessionRef.current = null;
     onlineSessionRef.current = null;
     setOnlineSession(null);
     setSyncStatus('offline');
     setSyncError('');
+    setSyncMessage('');
     localStorage.removeItem(onlineSessionStorageKey);
   };
 
@@ -225,6 +292,7 @@ function App() {
             activeSession={onlineSession}
             syncStatus={syncStatus}
             syncError={syncError}
+            syncMessage={syncMessage}
             onJoin={handleJoinOnlineSession}
             onLeave={handleLeaveOnlineSession}
           />
@@ -426,6 +494,7 @@ function App() {
             activeSession={onlineSession}
             syncStatus={syncStatus}
             syncError={syncError}
+            syncMessage={syncMessage}
             onCreate={handleCreateOnlineSession}
             onJoin={handleJoinOnlineSession}
             onLeave={handleLeaveOnlineSession}

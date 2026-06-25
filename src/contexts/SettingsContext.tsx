@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { Settings, SettingsContextType } from '../types';
 
 const defaultSettings: Settings = {
@@ -28,9 +28,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('schafkopf-settings', JSON.stringify(settings));
   }, [settings]);
 
-  const updateSettings = (newSettings: Partial<Settings>) => {
+  const updateSettings = useCallback((newSettings: Partial<Settings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
-  };
+  }, []);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings }}>

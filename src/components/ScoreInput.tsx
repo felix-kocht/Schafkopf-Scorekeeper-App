@@ -8,6 +8,7 @@ export const ScoreInput: React.FC<ScoreInputProps> = ({
   players,
   onSubmit,
   onYellowCard,
+  onRedCard,
   onSittingOutChange,
 }) => {
   const { settings } = useSettings();
@@ -73,9 +74,11 @@ export const ScoreInput: React.FC<ScoreInputProps> = ({
     if (players[playerIndex].yellowCard) {
       if (confirm('Player already has a yellow card. Issue a red card and apply penalty?')) {
         const redCardScores = generateRedCardScores(playerIndex, players.length, settings.redCardPenalty);
-        onSubmit(redCardScores);
+        onRedCard(playerIndex, redCardScores);
       }
+      return;
     }
+
     onYellowCard(playerIndex);
   };
 

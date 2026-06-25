@@ -21,6 +21,7 @@ import { Player, PreviousPlayer } from '../types';
 interface PlayerManagementProps {
   players: Player[];
   previousPlayers: PreviousPlayer[];
+  onlineSessionControls?: React.ReactNode;
   onAddPlayer: (name: string, initialScore?: number, scoreHistory?: number[]) => void;
   onRemovePlayer: (index: number) => void;
   onReorderPlayers: (fromIndex: number, toIndex: number) => void;
@@ -97,6 +98,7 @@ const getPreviousPlayerInitialScore = (player: PreviousPlayer): number => {
 export const PlayerManagement: React.FC<PlayerManagementProps> = ({
   players,
   previousPlayers,
+  onlineSessionControls,
   onAddPlayer,
   onRemovePlayer,
   onReorderPlayers,
@@ -165,7 +167,7 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-800/90 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-gray-700 w-full max-w-md">
+      <div className="bg-gray-800/90 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-gray-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-100 flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -178,6 +180,12 @@ export const PlayerManagement: React.FC<PlayerManagementProps> = ({
             <X className="h-5 w-5 text-gray-400" />
           </button>
         </div>
+
+        {onlineSessionControls && (
+          <div className="mb-5">
+            {onlineSessionControls}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mb-6">
           <div>

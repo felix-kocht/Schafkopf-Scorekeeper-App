@@ -510,19 +510,6 @@ function App() {
           </div>
         </header>
 
-        <div className="mb-8">
-          <GameSessionSync
-            isConfigured={isFirebaseConfigured}
-            activeSession={onlineSession}
-            syncStatus={syncStatus}
-            syncError={syncError}
-            syncMessage={syncMessage}
-            onCreate={handleCreateOnlineSession}
-            onJoin={handleJoinOnlineSession}
-            onLeave={handleLeaveOnlineSession}
-          />
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <TotalScores 
             players={players} 
@@ -550,6 +537,19 @@ function App() {
           onClose={() => setShowPlayerManagement(false)}
           players={players}
           previousPlayers={previousPlayers}
+          onlineSessionControls={
+            <GameSessionSync
+              isConfigured={isFirebaseConfigured}
+              activeSession={onlineSession}
+              syncStatus={syncStatus}
+              syncError={syncError}
+              syncMessage={syncMessage}
+              compact
+              onCreate={handleCreateOnlineSession}
+              onJoin={handleJoinOnlineSession}
+              onLeave={handleLeaveOnlineSession}
+            />
+          }
           onAddPlayer={handleAddPlayer}
           onRemovePlayer={handleRemovePlayer}
           onReorderPlayers={handleReorderPlayers}

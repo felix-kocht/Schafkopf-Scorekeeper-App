@@ -8,6 +8,7 @@ interface GameSessionSyncProps {
   syncStatus: SyncStatus;
   syncError: string;
   syncMessage: string;
+  compact?: boolean;
   onCreate?: () => Promise<void>;
   onJoin: (joinCode: string) => Promise<void>;
   onLeave?: () => void;
@@ -27,6 +28,7 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
   syncStatus,
   syncError,
   syncMessage,
+  compact = false,
   onCreate,
   onJoin,
   onLeave,
@@ -69,8 +71,10 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
   };
 
   return (
-    <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-xl backdrop-blur-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className={`border border-gray-700 bg-gray-800/50 backdrop-blur-sm ${
+      compact ? 'rounded-lg p-3' : 'rounded-xl p-4 shadow-xl'
+    }`}>
+      <div className={`${compact ? 'mb-2' : 'mb-3'} flex items-center justify-between gap-3`}>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-100">
           <Cloud className="h-4 w-4" />
           Online Session
@@ -83,11 +87,11 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
       {!isConfigured ? (
         <p className="text-sm text-gray-400">Firebase config missing.</p>
       ) : activeSession ? (
-        <div className="space-y-3">
+        <div className={compact ? '' : 'space-y-3'}>
           <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-900/50 px-3 py-2">
             <div className="min-w-0">
               <p className="text-xs text-gray-400">Join Code</p>
-              <p className="font-mono text-lg font-semibold tracking-wider text-gray-100">
+              <p className={`font-mono font-semibold tracking-wider text-gray-100 ${compact ? 'text-base' : 'text-lg'}`}>
                 {activeSession.joinCode}
               </p>
             </div>
@@ -95,10 +99,10 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
               <button
                 type="button"
                 onClick={onLeave}
-                className="p-2 text-gray-400 transition-colors hover:text-red-400"
+                className={`${compact ? 'p-1.5' : 'p-2'} text-gray-400 transition-colors hover:text-red-400`}
                 title="Leave online session"
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
               </button>
             )}
           </div>
@@ -110,9 +114,11 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
               type="button"
               onClick={handleCreate}
               disabled={isBusy}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-600/50"
+              className={`flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-600/50 ${
+                compact ? 'px-3 py-2 text-sm' : 'px-4 py-2.5'
+              }`}
             >
-              <Plus className="h-5 w-5" />
+              <Plus className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
               Create Online Session
             </button>
           )}
@@ -123,15 +129,19 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
               value={joinCode}
               onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
               placeholder="Join code"
-              className="min-w-0 flex-1 rounded-lg border border-gray-600 bg-gray-700/50 p-2 text-gray-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              className={`min-w-0 flex-1 rounded-lg border border-gray-600 bg-gray-700/50 text-gray-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
+                compact ? 'px-2 py-1.5 text-sm' : 'p-2'
+              }`}
             />
             <button
               type="submit"
               disabled={isBusy || !joinCode.trim()}
-              className="rounded-lg bg-gray-700 px-4 py-2 text-white transition-colors hover:bg-gray-600 disabled:opacity-50"
+              className={`rounded-lg bg-gray-700 text-white transition-colors hover:bg-gray-600 disabled:opacity-50 ${
+                compact ? 'px-3 py-1.5' : 'px-4 py-2'
+              }`}
               title="Join online session"
             >
-              <Link2 className="h-5 w-5" />
+              <Link2 className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
             </button>
           </form>
         </div>
@@ -145,7 +155,7 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
         <p className="mt-3 text-xs text-gray-400">{syncMessage}</p>
       )}
 
-      {activeSession && syncStatus === 'online' && (
+      {activeSession && syncStatus === 'online' && !compact && (
         <p className="mt-3 flex items-center gap-2 text-xs text-gray-400">
           <Users className="h-4 w-4" />
           Live sync active

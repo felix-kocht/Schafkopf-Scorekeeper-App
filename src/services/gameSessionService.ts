@@ -1,4 +1,4 @@
-import { signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   collection,
   doc,
@@ -44,15 +44,35 @@ const createJoinCode = () => {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 };
 
-const getCurrentUid = async () => {
+const waitForAuthUser = async () => {
   const { auth } = getFirebaseServices();
 
-  if (!auth.currentUser) {
-    const credential = await signInAnonymously(auth);
-    return credential.user.uid;
+  if (auth.currentUser) {
+    return auth.currentUser.uid;
   }
 
-  return auth.currentUser.uid;
+  return new Promise<string | null>((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      user => {
+        unsubscribe();
+        resolve(user?.uid ?? null);
+      },
+      reject
+    );
+  });
+};
+
+const getCurrentUid = async () => {
+  const { auth } = getFirebaseServices();
+  const existingUid = await waitForAuthUser();
+
+  if (existingUid) {
+    return existingUid;
+  }
+
+  const credential = await signInAnonymously(auth);
+  return credential.user.uid;
 };
 
 const sanitizePreviousPlayer = (player: PreviousPlayer): PreviousPlayer => {
@@ -330,6 +350,31 @@ export const joinGameSession = async (joinCode: string): Promise<{
   };
 };
 
+export const getGameSession = async (sessionId: string): Promise<{
+  session: OnlineGameSession;
+  state: GameSessionState;
+}> => {
+  const { db } = getFirebaseServices();
+
+  await getCurrentUid();
+
+  const sessionSnapshot = await getDoc(doc(db, sessionsCollection, sessionId));
+
+  if (!sessionSnapshot.exists()) {
+    throw new Error('Online session no longer exists.');
+  }
+
+  const storedSession = getStoredSession(sessionSnapshot.data());
+
+  return {
+    session: {
+      id: sessionSnapshot.id,
+      joinCode: storedSession.joinCode,
+    },
+    state: storedSession.state,
+  };
+};
+
 export const updateGameSessionState = async (sessionId: string, state: GameSessionState) => {
   const uid = await getCurrentUid();
   const { db } = getFirebaseServices();
@@ -348,27 +393,44 @@ export const subscribeToGameSession = (
   onError: (error: Error) => void
 ): Unsubscribe => {
   const { db } = getFirebaseServices();
+  let unsubscribe: Unsubscribe | null = null;
+  let didUnsubscribe = false;
 
-  return onSnapshot(
-    doc(db, sessionsCollection, sessionId),
-    snapshot => {
-      if (!snapshot.exists()) {
-        onError(new Error('Online session no longer exists.'));
-        return;
-      }
+  void getCurrentUid()
+    .then(() => {
+      if (didUnsubscribe) return;
 
-      try {
-        const storedSession = getStoredSession(snapshot.data());
-        onState(storedSession.state, {
-          id: snapshot.id,
-          joinCode: storedSession.joinCode,
-        });
-      } catch (error) {
-        onError(error instanceof Error ? error : new Error('Online session could not be read.'));
+      unsubscribe = onSnapshot(
+        doc(db, sessionsCollection, sessionId),
+        snapshot => {
+          if (!snapshot.exists()) {
+            onError(new Error('Online session no longer exists.'));
+            return;
+          }
+
+          try {
+            const storedSession = getStoredSession(snapshot.data());
+            onState(storedSession.state, {
+              id: snapshot.id,
+              joinCode: storedSession.joinCode,
+            });
+          } catch (error) {
+            onError(error instanceof Error ? error : new Error('Online session could not be read.'));
+          }
+        },
+        error => {
+          onError(error);
+        }
+      );
+    })
+    .catch(error => {
+      if (!didUnsubscribe) {
+        onError(error instanceof Error ? error : new Error('Firebase sign-in failed.'));
       }
-    },
-    error => {
-      onError(error);
-    }
-  );
+    });
+
+  return () => {
+    didUnsubscribe = true;
+    unsubscribe?.();
+  };
 };

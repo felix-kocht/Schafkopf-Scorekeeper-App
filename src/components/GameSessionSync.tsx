@@ -7,6 +7,7 @@ interface GameSessionSyncProps {
   activeSession: OnlineGameSession | null;
   syncStatus: SyncStatus;
   syncError: string;
+  syncMessage: string;
   onCreate?: () => Promise<void>;
   onJoin: (joinCode: string) => Promise<void>;
   onLeave?: () => void;
@@ -25,6 +26,7 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
   activeSession,
   syncStatus,
   syncError,
+  syncMessage,
   onCreate,
   onJoin,
   onLeave,
@@ -137,6 +139,10 @@ export const GameSessionSync: React.FC<GameSessionSyncProps> = ({
 
       {(localError || syncError) && (
         <p className="mt-3 text-sm text-red-400">{localError || syncError}</p>
+      )}
+
+      {syncMessage && (
+        <p className="mt-3 text-xs text-gray-400">{syncMessage}</p>
       )}
 
       {activeSession && syncStatus === 'online' && (

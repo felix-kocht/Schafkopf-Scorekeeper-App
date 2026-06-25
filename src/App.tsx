@@ -401,6 +401,28 @@ function App() {
     });
   };
 
+  const handleRedCard = (playerIndex: number, redCardScores: number[]) => {
+    if (playerIndex < 0 || playerIndex >= players.length) return;
+
+    const updatedScores = [...scores, redCardScores];
+
+    const nextPlayers = players.map((player, i) => ({
+      ...player,
+      sittingOut: i > 0 ? players[i-1].sittingOut : players[players.length-1].sittingOut
+    }));
+
+    const updatedPlayers = nextPlayers.map((player, index) =>
+      index === playerIndex ? { ...player, yellowCard: false } : player
+    );
+
+    saveGameState({
+      players: updatedPlayers,
+      scores: updatedScores,
+      previousPlayers,
+      settings,
+    });
+  };
+
   const handleYellowCard = (playerIndex: number) => {
     const updatedPlayers = players.map((player, index) => 
       index === playerIndex 
@@ -511,6 +533,7 @@ function App() {
             players={players}
             onSubmit={handleScoreSubmit}
             onYellowCard={handleYellowCard}
+            onRedCard={handleRedCard}
             onSittingOutChange={handleSittingOutChange}
           />
         </div>

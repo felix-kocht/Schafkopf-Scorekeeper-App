@@ -40,6 +40,7 @@ export interface ScoreInputProps {
   players: Player[];
   onSubmit: (scores: number[]) => void;
   onYellowCard: (index: number) => void;
+  onRedCard: (index: number, scores: number[]) => void;
   onSittingOutChange: (index: number, value: boolean) => void;
 }
 
